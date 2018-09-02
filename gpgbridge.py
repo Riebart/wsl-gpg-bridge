@@ -36,8 +36,10 @@ def handle(sock, address, remote_address, preamble):
             else:
                 print("To remote:", buf)
                 rs.sendall(buf)
+    print("Closing unix socket")
     sock.shutdown(socket.SHUT_RDWR)
     sock.close()
+    print("Closing TCP socket")
     rs.shutdown(socket.SHUT_RDWR)
     rs.close()
 
