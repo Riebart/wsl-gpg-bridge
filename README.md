@@ -32,6 +32,15 @@ This is still very much a proof-of-concept-quality tool, and while it works in t
 
 Note that this will redirect all private key operations through the Windows agent, and so any private keys in your WSL secring will not be available unless you import them on again on your Windows toolchain. Note that, since the agent is Windows, it will use the Windows pinentry binaries, which pop up a GUI dialog box, so you won't be using gpg pinentry dialogs typical of Unix CLI toolchains.
 
+## Known Bugs
+
+### `ssh-agent` Support
+
+Support for the ssh-agent functionality doesn't work, and is tied to the same bug that affects interop between OpenSSH-Win32 and GnuPG on Windows.
+
+- Ref: https://dev.gnupg.org/T3883
+- Ref: https://github.com/PowerShell/Win32-OpenSSH/issues/827
+
 ## Details
 
 This script works by reading the special socket wrapper files (Assuan? I think?) that are written by the Windows binaries to allow them to talk to each other, since they predate the official support of [Unix sockets in Windows](https://blogs.msdn.microsoft.com/commandline/2018/02/07/windowswsl-interop-with-af_unix/). One could hope that in future builds those will be supported out of the box and we don't need to do this mess, but until then this will work fine.
