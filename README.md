@@ -14,6 +14,24 @@ This is still very much a proof-of-concept-quality tool, and while it works in t
 
 ## Using it
 
+### The simple way
+
+You still need to download and unpack the [GnuPG Windows binaries](https://www.gnupg.org/download/index.html).
+
+- Make sure that the GnuPG binaries are in your Windows path (user or system, either will work).
+  - I unpack them into my `%LOCALAPPDATA%\Programs\gnupg` folder, then add `%LOCALAPPDATA%\Programs\gnupg\bin` to my user PATH environment variable.
+  - Adding them to your PATH in Windows also adds them to your PATH in WSL.
+- Use `gpgbridge.py` as a drop-in replacement for manually running `gpg-agent`. It takes care of:
+  - Spawning the Windows processes
+  - Using `gpgconf`/`gpgconf.exe` to determine proper locations of files to read/write
+  - `wslpath` to translate paths back and forth between Windows and WSL
+
+Example:
+
+![Example demonstrating accessing a Yubikey from WSL gpg](example.gif)
+
+### The old, complicated way
+
 - In Powershell:
   - Go download and unpack the latest GnuPG Windows release.
   - Insert your PGP Smart Card.
