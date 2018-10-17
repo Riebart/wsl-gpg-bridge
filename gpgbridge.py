@@ -23,9 +23,21 @@ LOGGER = logging.getLogger()
 LOGGER.addHandler(logging.StreamHandler(sys.stderr))
 
 
-def handle(sock, address, remote_address, preamble):
+def read_assuan_file(filename):
+    LOGGER.debug("Opening Assuan socket to read nonce: %s" % filename)
+    with open(filename, "rb") as fp:
+        windows_port = int(fp.readline().strip().decode("ascii"))
+        windows_payload = fp.read()
+        LOGGER.debug("Read %d bytes of nonce for port %d" %
+                     (len(windows_payload), windows_port))
+    return ("127.0.0.1", windows_port), windows_payload
+
+
+def handle(sock, address, sock_name):
     # Reference:
     # - https://dev.gnupg.org/T3883
+    remote_address, preamble = read_assuan_file(sock_name)
+
     LOGGER.debug("Opening socket to TCP side")
     rs = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     rs.connect(remote_address)
@@ -74,13 +86,6 @@ def derive_unix_socket(socket_type):
 
 
 def start_listener(assuan_socket, unix_socket, no_clobber):
-    LOGGER.debug("Opening Assuan socket to read nonce: %s" % assuan_socket)
-    with open(assuan_socket, "rb") as fp:
-        windows_port = int(fp.readline().strip().decode("ascii"))
-        windows_payload = fp.read()
-        LOGGER.debug("Read %d bytes of nonce for port %d" %
-                     (len(windows_payload), windows_port))
-
     LOGGER.debug("Setting up Unix socket")
     us = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)  # pylint: disable=E1101
 
@@ -108,7 +113,7 @@ def start_listener(assuan_socket, unix_socket, no_clobber):
                 client, address = us.accept()
                 LOGGER.debug(
                     "Accepting from (%s, %s)" % (str(client), str(address)))
-                thread = threading.Thread(target=lambda c=client, a=address, r=('127.0.0.1', windows_port), p=windows_payload: handle(c, a, r, p))
+                thread = threading.Thread(target=lambda c=client, a=address, s=assuan_socket: handle(c, a, s))
                 thread.start()
             except socket.error as e:
                 LOGGER.warn("Socket error encountered: %s" % str(e))
@@ -134,7 +139,8 @@ def start_gpg_agent(verbose):
         # functionality. This seems to be the default anyway.
         proc = subprocess.Popen(
             ("powershell.exe", "-command", "gpg-agent.exe", "--daemon",
-             ("--verbose" if verbose else "--quiet"), "--enable-ssh-support"),
+             ("--verbose" if verbose else "--quiet"), "--enable-ssh-support",
+             "--enable-putty-support"),
             stdout=(None if verbose else subprocess.DEVNULL),  # pylint: disable=E1101
             stderr=(None if verbose else subprocess.DEVNULL))  # pylint: disable=E1101
 
