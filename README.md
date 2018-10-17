@@ -12,6 +12,10 @@ This script provides a mechanism for WSL `gpg` to talk to a Windows `gpg-agent` 
 
 This is still very much a proof-of-concept-quality tool, and while it works in the few cases I've tried it in, there's no guarantees it'll work in all cases, or that it will be stable in any environment other than mine.
 
+## Prerequisites
+
+To use `gpgbridge.py` as a daemon, which you probably want, you'll need to install the `python-daemon` package with something like `pip3 install python-daemon`. Without this you might be able to get away with background it, but the daemon is _far_ preferable. Starting with Windows 10 1803, WSL supports daemon processes that live beyond any single shell lifespan, so it'll persist across multiple windows/shells/sleep-resume cycles.
+
 ## Using it
 
 ### The simple way
