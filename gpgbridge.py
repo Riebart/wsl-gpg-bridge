@@ -185,7 +185,37 @@ def __listen_loop(threads):
             pass
 
 
-def main(parsed_args):
+def check_for_unix_agent():
+    """
+    Check to see if there is an existing Unix gpg-agent by attempting to connect to the gpg-agent
+    socket.
+    """
+    unix_sock_name = derive_unix_socket("agent-socket")
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(unix_sock_name)
+        return True
+    except ConnectionRefusedError:
+        return False
+    except FileNotFoundError:
+        return False
+
+
+def pageant_main(parsed_args):
+    """
+    Start the agent proxy between Pageant/Windows memory-mapping and Assuan sockets.
+    """
+    pass
+
+
+def bridge_main(parsed_args):
+    """
+    Start the GPG bridge between Assuan and Unix sockets.
+    """
+    if check_for_unix_agent():
+        LOGGER.error("Existing Unix agent found. Not starting.")
+        exit(2)
+
     start_gpg_agent(parsed_args.verbose)
     threads = dict()
 
@@ -273,10 +303,20 @@ if __name__ == "__main__":
         help=
         """If Unix sockets exist, will not attempt to remove (clobber) them."""
     )
+    parser.add_argument(
+        "--pageant-proxy",
+        action="store_true",
+        default=False,
+        help=
+        """Start the necessary Windows process to interact with the Pageant agent through Assuan sockets."""
+    )
 
     parsed_args = parser.parse_args()
 
     if parsed_args.verbose:
         LOGGER.setLevel(logging.DEBUG)
 
-    main(parsed_args)
+    if parsed_args.pageant_proxy:
+        pageant_main(parsed_args)
+    else:
+        bridge_main(parsed_args)
