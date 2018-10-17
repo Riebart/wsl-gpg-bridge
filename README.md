@@ -50,6 +50,14 @@ Note that this will redirect all private key operations through the Windows agen
 
 ## Known Bugs
 
+### `--verbose` causes output issues
+
+Because `--verbose` passes output from the Windows binaries to a Linux console, the extra `\r` characters and some other items cause all sorts of havoc. If you need/want to use `--verbose` for debugging or curiosity, I recommend something like the following to capture stderr and stdout, and remove the CR characters, keeping the terminal flow far closer to well behaved.
+
+```bash
+(./gpgbridge.py --verbose 2>&1) 2>&1 | tr -d '\r'
+```
+
 ### `ssh-agent` related bugs
 
 Support for the ssh-agent functionality doesn't work as nicely as it should, and is tied to the same bug that affects interop between OpenSSH-Win32 and GnuPG on Windows.
