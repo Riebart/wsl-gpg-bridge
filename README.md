@@ -18,13 +18,12 @@ To use `gpgbridge.py` as a daemon, which you probably want, you'll need to insta
 
 ## Using it
 
-### The simple way
-
-You still need to download and unpack the [GnuPG Windows binaries](https://www.gnupg.org/download/index.html).
+You will need to download and unpack the [GnuPG Windows binaries](https://www.gnupg.org/download/index.html).
 
 - Make sure that the GnuPG binaries are in your Windows path (user or system, either will work).
-  - I unpack them into my `%LOCALAPPDATA%\Programs\gnupg` folder, then add `%LOCALAPPDATA%\Programs\gnupg\bin` to my user PATH environment variable.
-  - Adding them to your PATH in Windows also adds them to your PATH in WSL.
+  - Letting the installer run as admin adds them to the system PATH after installing to `Program Files (x86)`.
+  - I unpack them into my `%LOCALAPPDATA%\Programs\gnupg` folder, then add `%LOCALAPPDATA%\Programs\gnupg\bin` to my user PATH environment variable, as this doesn't require administrative privileges.
+  - Adding them to your PATH (user or system) in Windows also adds them to your PATH in WSL by default starting with Windows 10 1803.
 - Use `gpgbridge.py` as a drop-in replacement for manually running `gpg-agent`. It takes care of:
   - Spawning the Windows processes
   - Using `gpgconf`/`gpgconf.exe` to determine proper locations of files to read/write
@@ -34,31 +33,26 @@ Example:
 
 ![Example demonstrating accessing a Yubikey from WSL gpg](example.gif)
 
-### The old, complicated way
+### With `ssh-agent` support
 
-- In Powershell:
-  - Go download and unpack the latest GnuPG Windows release.
-  - Insert your PGP Smart Card.
-  - Start gpg-agent as a daemon on Windows
-    - You can either run it yourself in the foreground for testing by running `gpg-agent --daemon` from a Powershell prompt, or run `gpg --card-status` from a Powershell prompt, which will spawn a background gpg-agent.
-  - Note your Windows username, you'll need that.
-- In WSL:
-  - Download the Python script and run it with something like
+The bridge supports `--enable-ssh-support`, and has one additional requirement:
+
+- Make sure that Python 3.6+ is in your Windows path (user or system, either will work), and has Paramiko installed (`pip3 install parmaiko`)
+- Exporting the necessary `SSH_AUTH_SOCK` is left up to the user, and it is not output like `ssh-agent -s` does.
+
+  ```bash
+  export SSH_AUTH_SOCK=`$ gpgconf --list-dirs agent-ssh-socket`
   ```
-  python3 gpgbridge.py /mnt/c/Users/${WindowsUserName}/AppData/Roaming/gnupg/S.gpg-agent ~/.gnupg/S.gpg-agent
-  ```
-  - In a new WSL window (since the above command will stay in the foreground), run `gpg --card-status`, and you should be able to see the script output what the agent and client are saying to each other over the socket broker.
-  - If successful, `gpg --card-status` in WSL (calling the WSL binary, not the Windows binary you unpacked earlier) should produce some sensible output!
 
 ## Caveats
 
-Note that this will redirect all private key operations through the Windows agent, and so any private keys in your WSL secring will not be available unless you import them on again on your Windows toolchain. Note that, since the agent is Windows, it will use the Windows pinentry binaries, which pop up a GUI dialog box, so you won't be using gpg pinentry dialogs typical of Unix CLI toolchains.
+Note that this will redirect all private key operations through the Windows agent, and so any private keys in your WSL secring will not be available unless you import them on again on your Windows toolchain. Note that, since the agent is Windows, it will use the Windows pinentry binaries, which pop up a GUI dialog box, so you won't be using gpg pinentry dialogs typical of Unix CLI toolchains. Notably, this is kind of annoying as they cannot claim focus, so when they pop up there's an Alt+Tab/mouse maneuver to select the pinentry dialog.
 
 ## Known Bugs
 
-### `ssh-agent` Support
+### `ssh-agent` related bugs
 
-Support for the ssh-agent functionality doesn't work, and is tied to the same bug that affects interop between OpenSSH-Win32 and GnuPG on Windows.
+Support for the ssh-agent functionality doesn't work as nicely as it should, and is tied to the same bug that affects interop between OpenSSH-Win32 and GnuPG on Windows.
 
 - Ref: https://dev.gnupg.org/T3883
 - Ref: https://github.com/PowerShell/Win32-OpenSSH/issues/827
@@ -70,3 +64,19 @@ This script works by reading the special socket wrapper files (Assuan? I think?)
 The scripts starts by listening on a Unix socket (which, since gpg forces the use of sockets in standard locations now, should be in `~/.gnupg/S.gpg-agent` or something similar) in stream mode, and waits. Each time there is a connection to that listening socket, it spawns a thread that establishes a connection out tot he Windows socket, determined by reading the special wrapper files in `%APPDATA%/gnupg`, specifically the `%APPDATA%/gnupg/S.gpg-agent` file. This file has the TCP listening port the agent chose, a newline, and then some more goop (essentially authentication stuff, so you can't just connect to this socket and talk to the gpg-agent without also having some filesystem access). This script connects out to the socket, sends the goop, and then acts as `socat`, acting as a relay passing data back and forth between the sockets without modification or interpretation.
 
 When either end closes the connection, the script closes the other end and terminates the thread.
+
+### `ssh-agent` support details
+
+Support for SSH agent socket is done in an _even more_ roundabout way. Because the Windows GnuPG `--enable-ssh-support` is broken, and doesn't work, but the `--enable-putty-support` works perfectly, we use the latter to provide the functionality instead. The only difference between `ssh-agent` and `pageant` is the transport for communication (Unix sockets vs Windows memory-mapped files), but otherwise the protocols are identical and so the solution is to provide a replacement TCP/Assuan socket for the one generated by `gpg-agent.exe` that proxies between TCP and Windows handle writes/reads.
+
+Paramiko, Python's SSH library, contains a connection wrapper that handles communicating with `pageant` like a socket and so we use that for one side of this additional broken. The other side is simple TCP connection handling.
+
+When `gpgbridge.py` is passed the `--enable-ssh-support` option, then the spawned `gpg-agent.exe` process is called with `--enable-putty-support` to provide the agent. Once the gpg agent is up and running, another bridge is started via a Windows `python3.exe` call (hence why it needs to be on the path) which:
+
+- Loads Paramiko
+- Finds and connects to the agent
+- Opens a TCP listener on a system-determined port, and generates a new nonce
+- Generates a new Assuan socket file, clobbering the one generated by `gpg-agent.exe`
+- Enters a listening loop
+
+This process lives as a WSL process, and is disowned, like the bridge itself, when the bridge daemonizes. The proxying of the Unix socket to the Assuan socket is handled by the bridge as normal, like all other sockets.
