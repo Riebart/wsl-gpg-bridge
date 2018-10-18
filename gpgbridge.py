@@ -275,6 +275,26 @@ def start_gpg_agent(verbose, with_ssh_support):
         proc.communicate()
 
 
+def launch_gpg_agent(verbose, with_ssh_support):
+    if with_ssh_support:
+        LOGGER.debug("Enableing SSH and PuTTY support via gpg-agent.conf")
+        for opt in ["enable-ssh-support", "enable-putty-support"]:
+            LOGGER.debug("Setting %s" % opt)
+            proc = subprocess.Popen(
+                ("gpgconf.exe", "--change-options", "gpg-agent"),
+                stdin=subprocess.PIPE,
+                stdout=(None if verbose else subprocess.DEVNULL),
+                stderr=(None if verbose else subprocess.DEVNULL))
+            LOGGER.debug("Writing option config")
+            proc.communicate(input=("%s:0:1" % opt).encode("ascii"))
+            LOGGER.debug("Config set with returncode %d" % proc.returncode)
+
+    LOGGER.debug("Launching gpg-agent via gpgconf --launch")
+    returncode = subprocess.check_call(("gpgconf.exe", "--launch",
+                                        "gpg-agent"))
+    LOGGER.debug("Agent launched with returncode %d" % returncode)
+
+
 def __listen_loop(threads):
     LOGGER.debug("Starting all listening threads")
     for thread in threads.values():
@@ -341,7 +361,10 @@ def bridge_main(parsed_args):
         exit(2)
 
     LOGGER.info("Starting gpg-agent.exe process")
-    start_gpg_agent(parsed_args.verbose, parsed_args.enable_ssh_support)
+    if parsed_args.launch:
+        launch_gpg_agent(parsed_args.verbose, parsed_args.enable_ssh_support)
+    else:
+        start_gpg_agent(parsed_args.verbose, parsed_args.enable_ssh_support)
     threads = dict()
 
     for socket_name in [
@@ -369,16 +392,20 @@ def bridge_main(parsed_args):
 
     pageant_proxy_proc = None
     if parsed_args.enable_ssh_support:
-        LOGGER.debug("Starting pageant proxy process")
-        pageant_proxy_proc = subprocess.Popen(
-            [
-                "powershell.exe", "-command", "python3.exe",
-                get_windows_script_location(), "--pageant-proxy"
-            ] + (["--verbose"] if parsed_args.verbose else []),
-            stdout=(None if parsed_args.verbose else subprocess.DEVNULL),
-            stderr=(None if parsed_args.verbose else subprocess.DEVNULL))
-        LOGGER.debug(
-            "Pageant proxy started as WSL PID %d" % pageant_proxy_proc.pid)
+        if not parsed_args.no_pageant:
+            LOGGER.debug("Starting pageant proxy process")
+            pageant_proxy_proc = subprocess.Popen(
+                [
+                    "powershell.exe", "-command", "python3.exe",
+                    get_windows_script_location(), "--pageant-proxy"
+                ] + (["--verbose"] if parsed_args.verbose else []),
+                stdout=(None if parsed_args.verbose else subprocess.DEVNULL),
+                stderr=(None if parsed_args.verbose else subprocess.DEVNULL))
+            LOGGER.debug(
+                "Pageant proxy started as WSL PID %d" % pageant_proxy_proc.pid)
+        else:
+            LOGGER.debug(
+                "Skipping pageant proxy due to command line argument.")
 
     if parsed_args.daemon:
         try:
@@ -418,6 +445,14 @@ if __name__ == "__main__":
         default=False,
         help="""Fork into the background quietly.""")
     parser.add_argument(
+        "--launch",
+        action="store_true",
+        default=False,
+        help=
+        """Use gpgconf --launch as the mechanism for spawning the gpg-agent, instead of a Python subprocess.
+        This method is more robust against process exits when closing terminal windows but requires modification of"""
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         default=False,
@@ -446,6 +481,13 @@ if __name__ == "__main__":
         help=
         """If Unix sockets exist, will not attempt to remove (clobber) them."""
     )
+    parser.add_argument(
+        "--no-pageant",
+        action="store_true",
+        default=False,
+        help="""
+        Disable spawning of the Pageant proxy, and attempt to use the GnuPG Assuan socket naively.
+        """)
     parser.add_argument(
         "--pageant-proxy",
         action="store_true",
