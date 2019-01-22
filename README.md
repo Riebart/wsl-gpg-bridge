@@ -37,7 +37,7 @@ Example:
 
 The bridge supports `--enable-ssh-support`, and has one additional requirement:
 
-- Make sure that Python 3.6+ is in your Windows path (user or system, either will work), and has Paramiko installed (`pip3 install parmaiko`)
+- Make sure that Python 3.6+ is in your Windows path (user or system, either will work), and has Paramiko installed (`pip3 install paramiko`)
 - Exporting the necessary `SSH_AUTH_SOCK` is left up to the user, and it is not output like `ssh-agent -s` does.
 
   ```bash
