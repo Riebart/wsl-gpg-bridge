@@ -29,6 +29,8 @@ You will need to download and unpack the [GnuPG Windows binaries](https://www.gn
   - Using `gpgconf`/`gpgconf.exe` to determine proper locations of files to read/write
   - `wslpath` to translate paths back and forth between Windows and WSL
 
+As of Windows 10 17763, and WSL ubuntu 18.04.1 (tested on 2019-02-01 with the newest stabled Windows 10, and 1804 WSL), you can now close the spawning bash shell provided you use the `--launch` option for spawning the Windows process. This is useful, as both the Windows `gpg-agent.exe` process, and the WSL python3 process, stay alive after parent shell closes.
+
 Example:
 
 ![Example demonstrating accessing a Yubikey from WSL gpg](example.gif)
