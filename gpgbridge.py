@@ -373,7 +373,7 @@ def bridge_main(parsed_args):
         pageant_proxy_proc = subprocess.Popen(
             [
                 "powershell.exe", "-command", "python3.exe",
-                get_windows_script_location(), "--pageant-proxy"
+                '"' + get_windows_script_location() + '"', "--pageant-proxy"
             ] + (["--verbose"] if parsed_args.verbose else []),
             stdout=(None if parsed_args.verbose else subprocess.DEVNULL),
             stderr=(None if parsed_args.verbose else subprocess.DEVNULL))
