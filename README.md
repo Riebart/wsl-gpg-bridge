@@ -41,7 +41,7 @@ The bridge supports `--enable-ssh-support`, and has one additional requirement:
 - Exporting the necessary `SSH_AUTH_SOCK` is left up to the user, and it is not output like `ssh-agent -s` does.
 
   ```bash
-  export SSH_AUTH_SOCK=`$ gpgconf --list-dirs agent-ssh-socket`
+  export SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`
   ```
 
 ## Caveats
